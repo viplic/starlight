@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="bs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213d" />
+    <title>STAR LIGHT NAKIT | Kasa</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#pregled" aria-label="STAR LIGHT NAKIT početna">
+          <span class="brand-mark">SL</span>
+          <span><strong>STAR LIGHT</strong><small>NAKIT</small></span>
+        </a>
+
+        <nav class="nav" aria-label="Glavna navigacija">
+          <button class="nav-link active" data-view="pregled">
+            <span>⌂</span> Pregled
+          </button>
+          <button class="nav-link" data-view="unos">
+            <span>＋</span> Novi unos
+          </button>
+          <button class="nav-link" data-view="evidencija">
+            <span>▤</span> Evidencija
+          </button>
+          <button class="nav-link" data-view="izvjestaji">
+            <span>↗</span> Izvještaji
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          <div><strong>Podaci su sačuvani</strong><small>na ovom uređaju</small></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="menu-button" id="menuButton" aria-label="Otvori meni">☰</button>
+          <div>
+            <p class="eyebrow" id="pageEyebrow">DNEVNI PREGLED</p>
+            <h1 id="pageTitle">Dobro došli</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="themeButton" aria-label="Promijeni temu">◐</button>
+            <button class="primary-button" data-open-entry>＋ Novi unos</button>
+          </div>
+        </header>
+
+        <section class="view active" id="pregled">
+          <div class="date-strip">
+            <div>
+              <strong id="todayLabel"></strong>
+              <span>Pregled poslovanja i trenutno stanje kase</span>
+            </div>
+            <button class="ghost-button" id="openingBalanceButton">Postavi početno stanje</button>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card featured">
+              <div class="stat-heading"><span>Trenutno stanje kase</span><b>KM</b></div>
+              <strong class="stat-value" id="currentBalance">0,00 KM</strong>
+              <small id="balanceStatus">Kasa je spremna za prvi unos</small>
+            </article>
+            <article class="stat-card">
+              <div class="stat-heading"><span>Ukupno primljeno</span><i class="positive">↗</i></div>
+              <strong class="stat-value" id="totalIncome">0,00 KM</strong>
+              <small id="incomeCount">0 evidentiranih uplata</small>
+            </article>
+            <article class="stat-card">
+              <div class="stat-heading"><span>Ukupni troškovi</span><i class="negative">↘</i></div>
+              <strong class="stat-value" id="totalExpenses">0,00 KM</strong>
+              <small id="expenseCount">0 evidentiranih troškova</small>
+            </article>
+            <article class="stat-card">
+              <div class="stat-heading"><span>Broj paketa</span><i>□</i></div>
+              <strong class="stat-value" id="totalPackages">0</strong>
+              <small>Ukupno poslano</small>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel chart-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">KRETANJE KASE</p><h2>Posljednjih 7 unosa</h2></div>
+                <span class="legend"><i></i> Stanje u KM</span>
+              </div>
+              <div class="chart" id="balanceChart"></div>
+            </article>
+
+            <article class="panel quick-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">BRZI UNOS</p><h2>Dodaj promjenu</h2></div>
+              </div>
+              <form id="quickForm">
+                <div class="segmented">
+                  <label><input type="radio" name="quickType" value="plus" checked /><span>＋ Prihod</span></label>
+                  <label><input type="radio" name="quickType" value="minus" /><span>− Trošak</span></label>
+                </div>
+                <label class="field">
+                  <span>Iznos (KM)</span>
+                  <input type="number" id="quickAmount" min="0.01" step="0.01" placeholder="0,00" required />
+                </label>
+                <label class="field">
+                  <span>Opis</span>
+                  <input type="text" id="quickNote" placeholder="Npr. dodatni trošak dostave" />
+                </label>
+                <button class="primary-button full" type="submit">Sačuvaj promjenu</button>
+              </form>
+            </article>
+          </div>
+
+          <article class="panel recent-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">POSLJEDNJE AKTIVNOSTI</p><h2>Nedavni unosi</h2></div>
+              <button class="text-button" data-view-target="evidencija">Prikaži sve →</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Paketi</th><th>Promjena</th><th>Stanje</th></tr></thead>
+                <tbody id="recentRows"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="recentEmpty">
+              <span>＋</span><strong>Još nema unosa</strong><p>Dodajte prvi dnevni unos ili brzu promjenu kase.</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" id="unos">
+          <div class="section-intro">
+            <div><p class="eyebrow">DNEVNA EVIDENCIJA</p><h2 id="entryFormTitle">Novi dnevni unos</h2><p>Popunite podatke za odabrani dan. Sva polja su u KM.</p></div>
+          </div>
+          <form class="panel entry-form" id="entryForm">
+            <input type="hidden" id="entryId" />
+            <div class="form-section">
+              <div class="form-section-title"><span>01</span><div><h3>Osnovni podaci</h3><p>Datum, primljeni novac i broj paketa</p></div></div>
+              <div class="form-grid three">
+                <label class="field"><span>Datum</span><input type="date" id="entryDate" required /></label>
+                <label class="field"><span>Primljeno para (KM)</span><input type="number" id="income" min="0" step="0.01" placeholder="0,00" /></label>
+                <label class="field"><span>Broj paketa</span><input type="number" id="packages" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Vrijednost poslate robe (KM)</span><input type="number" id="goodsValue" min="0" step="0.01" placeholder="0,00" /></label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-title"><span>02</span><div><h3>Prodati nakit</h3><p>Količina prodatih artikala po kategoriji</p></div></div>
+              <div class="form-grid three">
+                <label class="field"><span>Krugovi (zlatni)</span><input type="number" id="goldCircles" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Krugovi (srebreni)</span><input type="number" id="silverCircles" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Mama ogrlice</span><input type="number" id="mamaNecklaces" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Vojničke pločice</span><input type="number" id="armyTags" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Oči pločice</span><input type="number" id="eyeTags" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Narukvice</span><input type="number" id="bracelets" min="0" step="1" placeholder="0" /></label>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-title"><span>03</span><div><h3>Troškovi i napomena</h3><p>Ovi iznosi se automatski oduzimaju od kase</p></div></div>
+              <div class="form-grid three">
+                <label class="field"><span>Ostali troškovi (KM)</span><input type="number" id="otherExpenses" min="0" step="0.01" placeholder="0,00" /></label>
+                <label class="field"><span>Plata (KM)</span><input type="number" id="salary" min="0" step="0.01" placeholder="0,00" /></label>
+                <label class="field wide"><span>Napomena</span><textarea id="note" rows="3" placeholder="Dodajte napomenu za ovaj dan..."></textarea></label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="ghost-button" type="reset" id="cancelEdit">Odustani</button>
+              <button class="primary-button" type="submit">Sačuvaj dnevni unos</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" id="evidencija">
+          <div class="section-intro">
+            <div><p class="eyebrow">SVI PODACI</p><h2>Evidencija</h2><p>Pretražite, izmijenite ili obrišite prethodne unose.</p></div>
+            <button class="primary-button" data-open-entry>＋ Novi unos</button>
+          </div>
+          <article class="panel">
+            <div class="filters">
+              <label class="search-box">⌕<input type="search" id="searchInput" placeholder="Pretraži opis ili napomenu..." /></label>
+              <label class="field compact"><span>Od</span><input type="date" id="filterFrom" /></label>
+              <label class="field compact"><span>Do</span><input type="date" id="filterTo" /></label>
+              <button class="ghost-button" id="clearFilters">Očisti</button>
+            </div>
+            <div class="table-wrap">
+              <table class="records-table">
+                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Paketi</th><th>Akcije</th></tr></thead>
+                <tbody id="allRows"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="allEmpty"><strong>Nema rezultata</strong><p>Promijenite filtere ili dodajte novi unos.</p></div>
+          </article>
+        </section>
+
+        <section class="view" id="izvjestaji">
+          <div class="section-intro">
+            <div><p class="eyebrow">ANALITIKA</p><h2>Mjesečni izvještaji</h2><p>Sažetak poslovanja spreman za izvoz ili štampu.</p></div>
+            <div class="report-actions"><button class="ghost-button" id="csvButton">Preuzmi CSV</button><button class="primary-button" id="printButton">Štampaj / PDF</button></div>
+          </div>
+          <div class="report-controls panel">
+            <label class="field compact"><span>Odaberite mjesec</span><input type="month" id="reportMonth" /></label>
+          </div>
+          <div class="stats-grid report-stats">
+            <article class="stat-card"><span>Početno stanje</span><strong id="reportOpening">0,00 KM</strong></article>
+            <article class="stat-card"><span>Prihodi</span><strong class="positive-text" id="reportIncome">0,00 KM</strong></article>
+            <article class="stat-card"><span>Troškovi</span><strong class="negative-text" id="reportExpenses">0,00 KM</strong></article>
+            <article class="stat-card"><span>Rezultat mjeseca</span><strong id="reportResult">0,00 KM</strong></article>
+          </div>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">MJESEČNI PREGLED</p><h2 id="reportTitle">Izvještaj</h2></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Paketi</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+            <div class="empty-state" id="reportEmpty"><strong>Nema podataka za ovaj mjesec</strong></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="openingDialog">
+      <form method="dialog" id="openingForm">
+        <div class="dialog-heading"><div><p class="eyebrow">POSTAVKE KASE</p><h2>Početno stanje</h2></div><button value="cancel" class="icon-button">×</button></div>
+        <p>Unesite iznos koji je bio u kasi prije prvog evidentiranog unosa.</p>
+        <label class="field"><span>Početno stanje (KM)</span><input type="number" id="openingBalanceInput" step="0.01" required /></label>
+        <button class="primary-button full" value="default">Sačuvaj stanje</button>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
