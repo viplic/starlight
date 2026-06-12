@@ -1,4 +1,4 @@
-const STORAGE_KEY = "starlight-kasa-v1";
+const THEME_KEY = "starlight-kasa-theme";
 const DAY_NAMES = ["nedjelja", "ponedjeljak", "utorak", "srijeda", "četvrtak", "petak", "subota"];
 const MONTH_NAMES = ["januar", "februar", "mart", "april", "maj", "juni", "juli", "avgust", "septembar", "oktobar", "novembar", "decembar"];
 
@@ -14,21 +14,71 @@ const shortDate = (value) => {
 };
 const safeText = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
 
-let state = loadState();
+let state = {
+  openingBalance: 0,
+  entries: [],
+  dark: localStorage.getItem(THEME_KEY) === "dark"
+};
+let requestPending = false;
 
-function loadState() {
+function setSyncStatus(status, detail, error = false) {
+  $("#syncStatus").textContent = status;
+  $("#syncDetail").textContent = detail;
+  $(".status-dot").classList.toggle("error", error);
+}
+
+function setRequestPending(pending) {
+  requestPending = pending;
+  $$("button[type='submit']").forEach((button) => {
+    button.disabled = pending;
+  });
+}
+
+async function apiRequest(body) {
+  const response = await fetch("/api/state", {
+    method: body ? "POST" : "GET",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Baza trenutno nije dostupna.");
+  }
+  return data;
+}
+
+function applyRemoteState(data) {
+  state.openingBalance = num(data.openingBalance);
+  state.entries = Array.isArray(data.entries) ? data.entries : [];
+  renderAll();
+  setSyncStatus("Podaci su sačuvani", "Neon cloud");
+}
+
+async function loadRemoteState() {
+  setSyncStatus("Učitavanje podataka", "Neon cloud");
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return { openingBalance: num(stored?.openingBalance), entries: Array.isArray(stored?.entries) ? stored.entries : [], dark: Boolean(stored?.dark) };
-  } catch {
-    return { openingBalance: 0, entries: [], dark: false };
+    applyRemoteState(await apiRequest());
+  } catch (error) {
+    setSyncStatus("Baza nije povezana", "Provjerite DATABASE_URL", true);
+    showToast(error.message, true);
   }
 }
 
-function saveState(message) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  renderAll();
-  if (message) showToast(message);
+async function persistAction(action, payload, message) {
+  if (requestPending) return false;
+  setRequestPending(true);
+  setSyncStatus("Čuvanje podataka", "Neon cloud");
+  try {
+    applyRemoteState(await apiRequest({ action, ...payload }));
+    if (message) showToast(message);
+    return true;
+  } catch (error) {
+    setSyncStatus("Čuvanje nije uspjelo", "Pokušajte ponovo", true);
+    showToast(error.message, true);
+    return false;
+  } finally {
+    setRequestPending(false);
+  }
 }
 
 function entryTotals(entry) {
@@ -232,9 +282,10 @@ function exportCSV() {
   showToast("CSV izvještaj je preuzet.");
 }
 
-function showToast(message) {
+function showToast(message, error = false) {
   const toast = $("#toast");
   toast.textContent = message;
+  toast.classList.toggle("error", error);
   toast.classList.add("show");
   clearTimeout(showToast.timeout);
   showToast.timeout = setTimeout(() => toast.classList.remove("show"), 2600);
@@ -244,25 +295,34 @@ $$(".nav-link").forEach((link) => link.addEventListener("click", () => showView(
 $$("[data-view-target]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
 $$("[data-open-entry]").forEach((button) => button.addEventListener("click", () => { resetEntryForm(); showView("unos"); }));
 $("#menuButton").addEventListener("click", () => document.body.classList.toggle("menu-open"));
-$("#themeButton").addEventListener("click", () => { state.dark = !state.dark; saveState(); });
+$("#themeButton").addEventListener("click", () => {
+  state.dark = !state.dark;
+  localStorage.setItem(THEME_KEY, state.dark ? "dark" : "light");
+  renderAll();
+});
 $("#openingBalanceButton").addEventListener("click", () => $("#openingDialog").showModal());
-$("#openingForm").addEventListener("submit", (event) => {
+$("#openingForm").addEventListener("submit", async (event) => {
   if (event.submitter?.value === "cancel") return;
-  state.openingBalance = num($("#openingBalanceInput").value);
-  saveState("Početno stanje je sačuvano.");
+  event.preventDefault();
+  const saved = await persistAction(
+    "setOpeningBalance",
+    { openingBalance: num($("#openingBalanceInput").value) },
+    "Početno stanje je sačuvano."
+  );
+  if (saved) $("#openingDialog").close();
 });
 
-$("#quickForm").addEventListener("submit", (event) => {
+$("#quickForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  state.entries.push({
+  const entry = {
     id: crypto.randomUUID(), kind: "quick", type: new FormData(event.currentTarget).get("quickType"),
     amount: num($("#quickAmount").value), note: $("#quickNote").value.trim(), date: dateISO(), createdAt: Date.now()
-  });
-  event.currentTarget.reset();
-  saveState("Promjena kase je sačuvana.");
+  };
+  const saved = await persistAction("saveEntry", { entry }, "Promjena kase je sačuvana.");
+  if (saved) event.currentTarget.reset();
 });
 
-$("#entryForm").addEventListener("submit", (event) => {
+$("#entryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const fields = ["income", "packages", "goodsValue", "goldCircles", "silverCircles", "mamaNecklaces", "armyTags", "eyeTags", "bracelets", "otherExpenses", "salary", "note"];
   const entry = { id: $("#entryId").value || crypto.randomUUID(), kind: "daily", createdAt: Date.now() };
@@ -274,13 +334,16 @@ $("#entryForm").addEventListener("submit", (event) => {
   const index = state.entries.findIndex((item) => item.id === entry.id);
   if (index >= 0) {
     entry.createdAt = state.entries[index].createdAt;
-    state.entries[index] = entry;
-  } else {
-    state.entries.push(entry);
   }
-  resetEntryForm();
-  saveState(index >= 0 ? "Unos je izmijenjen." : "Dnevni unos je sačuvan.");
-  showView("pregled");
+  const saved = await persistAction(
+    "saveEntry",
+    { entry },
+    index >= 0 ? "Unos je izmijenjen." : "Dnevni unos je sačuvan."
+  );
+  if (saved) {
+    resetEntryForm();
+    showView("pregled");
+  }
 });
 
 $("#cancelEdit").addEventListener("click", () => { resetEntryForm(); showView("pregled"); });
@@ -293,13 +356,12 @@ $("#clearFilters").addEventListener("click", () => {
   $("#filterTo").value = "";
   renderRecords();
 });
-$("#allRows").addEventListener("click", (event) => {
+$("#allRows").addEventListener("click", async (event) => {
   const editId = event.target.dataset.edit;
   const deleteId = event.target.dataset.delete;
   if (editId) editEntry(editId);
   if (deleteId && confirm("Da li sigurno želite obrisati ovaj unos?")) {
-    state.entries = state.entries.filter((entry) => entry.id !== deleteId);
-    saveState("Unos je obrisan.");
+    await persistAction("deleteEntry", { id: deleteId }, "Unos je obrisan.");
   }
 });
 $("#reportMonth").addEventListener("change", renderReport);
@@ -311,3 +373,4 @@ $("#todayLabel").textContent = `${DAY_NAMES[today.getDay()]}, ${today.getDate()}
 $("#entryDate").value = dateISO();
 $("#reportMonth").value = monthISO();
 renderAll();
+loadRemoteState();

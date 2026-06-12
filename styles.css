@@ -58,6 +58,7 @@ button { cursor: pointer; }
 .sidebar-footer strong { font-size: 11px; }
 .sidebar-footer small { margin-top: 3px; color: #8897ad; font-size: 10px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fc88d; box-shadow: 0 0 0 4px rgba(63,200,141,.12); }
+.status-dot.error { background: var(--red); box-shadow: 0 0 0 4px rgba(198,75,75,.12); }
 
 .main { min-height: 100vh; margin-left: 245px; padding: 0 42px 50px; }
 .topbar {
@@ -73,6 +74,7 @@ button { cursor: pointer; }
 }
 .primary-button { border: 1px solid var(--navy); color: white; background: var(--navy); }
 .primary-button:hover { background: var(--navy-2); transform: translateY(-1px); }
+.primary-button:disabled, button:disabled { cursor: wait; opacity: .55; transform: none; }
 .ghost-button { border: 1px solid var(--line); color: var(--text); background: var(--card); }
 .ghost-button:hover { border-color: var(--gold); }
 .icon-button { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; color: var(--text); background: var(--card); }
@@ -178,6 +180,7 @@ dialog form { padding: 25px; }
 dialog form > p { margin: 16px 0 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .toast { position: fixed; right: 24px; bottom: 24px; z-index: 50; transform: translateY(20px); padding: 13px 18px; border-radius: 7px; color: white; background: var(--navy); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .25s ease; font-size: 12px; }
 .toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { background: var(--red); }
 
 body.dark {
   --bg: #0d1727; --card: #142238; --text: #eef2f8; --muted: #92a0b5; --line: #263752;
