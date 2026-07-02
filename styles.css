@@ -88,7 +88,7 @@ button { cursor: pointer; }
 .date-strip strong { font-size: 15px; }
 .date-strip span { margin-top: 5px; color: var(--muted); font-size: 12px; }
 
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
 .stat-card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow); }
 .stat-card.featured { color: white; border-color: var(--navy); background: var(--navy); }
 .stat-heading { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }

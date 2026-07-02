@@ -83,9 +83,18 @@ async function persistAction(action, payload, message) {
 
 function entryTotals(entry) {
   if (entry.kind === "quick") {
-    return { income: entry.type === "plus" ? num(entry.amount) : 0, expense: entry.type === "minus" ? num(entry.amount) : 0 };
+    return {
+      income: entry.type === "plus" ? num(entry.amount) : 0,
+      expense: entry.type === "minus" ? num(entry.amount) : 0,
+      workerDebt: 0
+    };
   }
-  return { income: num(entry.income), expense: num(entry.otherExpenses) + num(entry.salary) };
+  const workerDebt = num(entry.workerDebt);
+  return {
+    income: num(entry.income),
+    expense: num(entry.otherExpenses) + num(entry.salary) + workerDebt,
+    workerDebt
+  };
 }
 
 function sortedEntries(entries = state.entries) {
@@ -126,11 +135,12 @@ function renderAll() {
     const values = entryTotals(entry);
     acc.income += values.income;
     acc.expense += values.expense;
+    acc.workerDebt += values.workerDebt;
     acc.packages += num(entry.packages);
     if (values.income) acc.incomeCount += 1;
     if (values.expense) acc.expenseCount += 1;
     return acc;
-  }, { income: 0, expense: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
+  }, { income: 0, expense: 0, workerDebt: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
   const balance = state.openingBalance + totals.income - totals.expense;
 
   $("#currentBalance").textContent = money(balance);
@@ -138,6 +148,7 @@ function renderAll() {
   $("#balanceStatus").textContent = balance < 0 ? "Upozorenje: kasa je u minusu" : entries.length ? `Početno stanje: ${money(state.openingBalance)}` : "Kasa je spremna za prvi unos";
   $("#totalIncome").textContent = money(totals.income);
   $("#totalExpenses").textContent = money(totals.expense);
+  $("#totalWorkerDebt").textContent = money(totals.workerDebt);
   $("#totalPackages").textContent = totals.packages;
   $("#incomeCount").textContent = `${totals.incomeCount} evidentiranih uplata`;
   $("#expenseCount").textContent = `${totals.expenseCount} evidentiranih troškova`;
@@ -190,6 +201,7 @@ function renderRecords() {
       <td>${safeText(description(entry))}</td>
       <td class="amount-plus">${totals.income ? money(totals.income) : "—"}</td>
       <td class="amount-minus">${totals.expense ? money(totals.expense) : "—"}</td>
+      <td class="amount-minus">${totals.workerDebt ? money(totals.workerDebt) : "—"}</td>
       <td>${num(entry.packages) || "—"}</td>
       <td>${entry.kind === "daily" ? `<button class="action-button" data-edit="${entry.id}">Izmijeni</button>` : ""}<button class="action-button delete" data-delete="${entry.id}">Obriši</button></td>
     </tr>`;
@@ -229,20 +241,22 @@ function renderReport() {
     const values = entryTotals(entry);
     acc.income += values.income;
     acc.expense += values.expense;
+    acc.workerDebt += values.workerDebt;
     acc.packages += num(entry.packages);
     return acc;
-  }, { income: 0, expense: 0, packages: 0 });
+  }, { income: 0, expense: 0, workerDebt: 0, packages: 0 });
   const [year, month] = selectedMonth.split("-");
   $("#reportTitle").textContent = `${MONTH_NAMES[num(month) - 1]} ${year}.`;
   $("#reportOpening").textContent = money(state.openingBalance);
   $("#reportIncome").textContent = money(totals.income);
   $("#reportExpenses").textContent = money(totals.expense);
+  $("#reportWorkerDebt").textContent = money(totals.workerDebt);
   $("#reportResult").textContent = money(totals.income - totals.expense);
   $("#reportResult").className = totals.income - totals.expense < 0 ? "negative-text" : "positive-text";
   $("#reportEmpty").classList.toggle("show", entries.length === 0);
   $("#reportRows").innerHTML = entries.map((entry) => {
     const values = entryTotals(entry);
-    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td>${num(entry.packages) || "—"}</td></tr>`;
+    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td class="amount-minus">${values.workerDebt ? money(values.workerDebt) : "—"}</td><td>${num(entry.packages) || "—"}</td></tr>`;
   }).join("");
 }
 
@@ -268,10 +282,10 @@ function editEntry(id) {
 function exportCSV() {
   const month = $("#reportMonth").value || monthISO();
   const entries = sortedEntries().filter((entry) => entry.date.startsWith(month));
-  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
+  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug prema radniku KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
   entries.forEach((entry) => {
     const totals = entryTotals(entry);
-    rows.push([entry.date, entry.kind === "quick" ? "Brzi unos" : "Dnevni unos", description(entry), totals.income, totals.expense, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
+    rows.push([entry.date, entry.kind === "quick" ? "Brzi unos" : "Dnevni unos", description(entry), totals.income, totals.expense, totals.workerDebt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
   });
   const csv = "\ufeff" + rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
@@ -324,7 +338,7 @@ $("#quickForm").addEventListener("submit", async (event) => {
 
 $("#entryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const fields = ["income", "packages", "goodsValue", "goldCircles", "silverCircles", "mamaNecklaces", "armyTags", "eyeTags", "bracelets", "otherExpenses", "salary", "note"];
+  const fields = ["income", "packages", "goodsValue", "goldCircles", "silverCircles", "mamaNecklaces", "armyTags", "eyeTags", "bracelets", "otherExpenses", "salary", "workerDebt", "note"];
   const entry = { id: $("#entryId").value || crypto.randomUUID(), kind: "daily", createdAt: Date.now() };
   entry.date = $("#entryDate").value;
   fields.forEach((field) => {

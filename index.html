@@ -75,6 +75,11 @@
               <small id="expenseCount">0 evidentiranih troškova</small>
             </article>
             <article class="stat-card">
+              <div class="stat-heading"><span>Dug prema radniku</span><i class="negative">−</i></div>
+              <strong class="stat-value" id="totalWorkerDebt">0,00 KM</strong>
+              <small>Oduzima se od kase</small>
+            </article>
+            <article class="stat-card">
               <div class="stat-heading"><span>Broj paketa</span><i>□</i></div>
               <strong class="stat-value" id="totalPackages">0</strong>
               <small>Ukupno poslano</small>
@@ -162,6 +167,7 @@
               <div class="form-grid three">
                 <label class="field"><span>Ostali troškovi (KM)</span><input type="number" id="otherExpenses" min="0" step="0.01" placeholder="0,00" /></label>
                 <label class="field"><span>Plata (KM)</span><input type="number" id="salary" min="0" step="0.01" placeholder="0,00" /></label>
+                <label class="field"><span>Dug prema radniku (KM)</span><input type="number" id="workerDebt" min="0" step="0.01" placeholder="0,00" /></label>
                 <label class="field wide"><span>Napomena</span><textarea id="note" rows="3" placeholder="Dodajte napomenu za ovaj dan..."></textarea></label>
               </div>
             </div>
@@ -186,7 +192,7 @@
             </div>
             <div class="table-wrap">
               <table class="records-table">
-                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Paketi</th><th>Akcije</th></tr></thead>
+                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug radniku</th><th>Paketi</th><th>Akcije</th></tr></thead>
                 <tbody id="allRows"></tbody>
               </table>
             </div>
@@ -206,11 +212,12 @@
             <article class="stat-card"><span>Početno stanje</span><strong id="reportOpening">0,00 KM</strong></article>
             <article class="stat-card"><span>Prihodi</span><strong class="positive-text" id="reportIncome">0,00 KM</strong></article>
             <article class="stat-card"><span>Troškovi</span><strong class="negative-text" id="reportExpenses">0,00 KM</strong></article>
+            <article class="stat-card"><span>Dug prema radniku</span><strong class="negative-text" id="reportWorkerDebt">0,00 KM</strong></article>
             <article class="stat-card"><span>Rezultat mjeseca</span><strong id="reportResult">0,00 KM</strong></article>
           </div>
           <article class="panel">
             <div class="panel-heading"><div><p class="eyebrow">MJESEČNI PREGLED</p><h2 id="reportTitle">Izvještaj</h2></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Paketi</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug radniku</th><th>Paketi</th></tr></thead><tbody id="reportRows"></tbody></table></div>
             <div class="empty-state" id="reportEmpty"><strong>Nema podataka za ovaj mjesec</strong></div>
           </article>
         </section>
