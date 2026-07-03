@@ -2,6 +2,15 @@ import { neon } from "@neondatabase/serverless";
 
 let schemaReady;
 
+const PRODUCT_FIELDS = [
+  "goldCircles",
+  "silverCircles",
+  "mamaNecklaces",
+  "armyTags",
+  "eyeTags",
+  "bracelets"
+];
+
 function getDatabase() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL nije postavljen.");
@@ -17,6 +26,7 @@ async function ensureSchema(sql) {
         CREATE TABLE IF NOT EXISTS starlight_settings (
           id SMALLINT PRIMARY KEY CHECK (id = 1),
           opening_balance NUMERIC(14, 2) NOT NULL DEFAULT 0,
+          stock JSONB NOT NULL DEFAULT '{}'::jsonb,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `,
@@ -31,8 +41,11 @@ async function ensureSchema(sql) {
         )
       `
     ]).then(() => sql`
-      INSERT INTO starlight_settings (id, opening_balance)
-      VALUES (1, 0)
+      ALTER TABLE starlight_settings
+      ADD COLUMN IF NOT EXISTS stock JSONB NOT NULL DEFAULT '{}'::jsonb
+    `).then(() => sql`
+      INSERT INTO starlight_settings (id, opening_balance, stock)
+      VALUES (1, 0, '{}'::jsonb)
       ON CONFLICT (id) DO NOTHING
     `).catch((error) => {
       schemaReady = undefined;
@@ -63,9 +76,38 @@ function normalizeEntry(entry) {
   };
 }
 
+function normalizeStock(stock = {}) {
+  return PRODUCT_FIELDS.reduce((normalized, field) => {
+    normalized[field] = Math.max(0, Number(stock[field]) || 0);
+    return normalized;
+  }, {});
+}
+
+function soldItems(entry = {}) {
+  if (entry.kind !== "daily") {
+    return normalizeStock();
+  }
+
+  return PRODUCT_FIELDS.reduce((items, field) => {
+    items[field] = Math.max(0, Number(entry[field]) || 0);
+    return items;
+  }, {});
+}
+
+function adjustStock(stock, previousEntry, nextEntry) {
+  const current = normalizeStock(stock);
+  const previousSold = soldItems(previousEntry);
+  const nextSold = soldItems(nextEntry);
+
+  return PRODUCT_FIELDS.reduce((adjusted, field) => {
+    adjusted[field] = Math.max(0, current[field] + previousSold[field] - nextSold[field]);
+    return adjusted;
+  }, {});
+}
+
 async function readState(sql) {
   const [settings, entries] = await Promise.all([
-    sql`SELECT opening_balance FROM starlight_settings WHERE id = 1`,
+    sql`SELECT opening_balance, stock FROM starlight_settings WHERE id = 1`,
     sql`
       SELECT payload
       FROM starlight_entries
@@ -75,6 +117,7 @@ async function readState(sql) {
 
   return {
     openingBalance: Number(settings[0]?.opening_balance || 0),
+    stock: normalizeStock(settings[0]?.stock || {}),
     entries: entries.map((row) => row.payload)
   };
 }
@@ -108,8 +151,21 @@ export default async function handler(request, response) {
         SET opening_balance = ${openingBalance}, updated_at = NOW()
         WHERE id = 1
       `;
+    } else if (body.action === "setStock") {
+      const stock = normalizeStock(body.stock);
+      await sql`
+        UPDATE starlight_settings
+        SET stock = ${JSON.stringify(stock)}::jsonb, updated_at = NOW()
+        WHERE id = 1
+      `;
     } else if (body.action === "saveEntry") {
       const entry = normalizeEntry(body.entry);
+      const [settings, existing] = await Promise.all([
+        sql`SELECT stock FROM starlight_settings WHERE id = 1`,
+        sql`SELECT payload FROM starlight_entries WHERE id = ${entry.id}`
+      ]);
+      const nextStock = adjustStock(settings[0]?.stock || {}, existing[0]?.payload, entry);
+
       await sql`
         INSERT INTO starlight_entries (id, entry_date, kind, created_at, payload)
         VALUES (${entry.id}, ${entry.date}, ${entry.kind}, ${entry.createdAt}, ${JSON.stringify(entry)}::jsonb)
@@ -119,10 +175,27 @@ export default async function handler(request, response) {
           payload = EXCLUDED.payload,
           updated_at = NOW()
       `;
+      await sql`
+        UPDATE starlight_settings
+        SET stock = ${JSON.stringify(nextStock)}::jsonb, updated_at = NOW()
+        WHERE id = 1
+      `;
     } else if (body.action === "deleteEntry") {
       const id = String(body.id || "");
       if (!id) {
         return response.status(400).json({ error: "Nedostaje ID unosa." });
+      }
+      const [settings, existing] = await Promise.all([
+        sql`SELECT stock FROM starlight_settings WHERE id = 1`,
+        sql`SELECT payload FROM starlight_entries WHERE id = ${id}`
+      ]);
+      if (existing[0]?.payload) {
+        const nextStock = adjustStock(settings[0]?.stock || {}, existing[0].payload, undefined);
+        await sql`
+          UPDATE starlight_settings
+          SET stock = ${JSON.stringify(nextStock)}::jsonb, updated_at = NOW()
+          WHERE id = 1
+        `;
       }
       await sql`DELETE FROM starlight_entries WHERE id = ${id}`;
     } else {

@@ -1,6 +1,14 @@
 const THEME_KEY = "starlight-kasa-theme";
 const DAY_NAMES = ["nedjelja", "ponedjeljak", "utorak", "srijeda", "četvrtak", "petak", "subota"];
 const MONTH_NAMES = ["januar", "februar", "mart", "april", "maj", "juni", "juli", "avgust", "septembar", "oktobar", "novembar", "decembar"];
+const PRODUCTS = [
+  { key: "goldCircles", stockId: "stockGoldCircles", label: "Krugovi (zlatni)" },
+  { key: "silverCircles", stockId: "stockSilverCircles", label: "Krugovi (srebreni)" },
+  { key: "mamaNecklaces", stockId: "stockMamaNecklaces", label: "Mama ogrlice" },
+  { key: "armyTags", stockId: "stockArmyTags", label: "Vojničke pločice" },
+  { key: "eyeTags", stockId: "stockEyeTags", label: "Oči pločice" },
+  { key: "bracelets", stockId: "stockBracelets", label: "Narukvice" }
+];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -16,6 +24,7 @@ const safeText = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 
 let state = {
   openingBalance: 0,
+  stock: {},
   entries: [],
   dark: localStorage.getItem(THEME_KEY) === "dark"
 };
@@ -49,6 +58,7 @@ async function apiRequest(body) {
 
 function applyRemoteState(data) {
   state.openingBalance = num(data.openingBalance);
+  state.stock = normalizeStock(data.stock);
   state.entries = Array.isArray(data.entries) ? data.entries : [];
   renderAll();
   setSyncStatus("Podaci su sačuvani", "Neon cloud");
@@ -86,15 +96,36 @@ function entryTotals(entry) {
     return {
       income: entry.type === "plus" ? num(entry.amount) : 0,
       expense: entry.type === "minus" ? num(entry.amount) : 0,
-      workerDebt: 0
+      debt: 0
     };
   }
-  const workerDebt = num(entry.workerDebt);
   return {
     income: num(entry.income),
-    expense: num(entry.otherExpenses) + num(entry.salary) + workerDebt,
-    workerDebt
+    expense: num(entry.otherExpenses) + num(entry.salary),
+    debt: num(entry.workerDebt)
   };
+}
+
+function normalizeStock(stock = {}) {
+  return PRODUCTS.reduce((normalized, product) => {
+    normalized[product.key] = Math.max(0, num(stock[product.key]));
+    return normalized;
+  }, {});
+}
+
+function totalStock(stock = state.stock) {
+  return PRODUCTS.reduce((sum, product) => sum + num(stock[product.key]), 0);
+}
+
+function soldProducts(entries = state.entries) {
+  return sortedEntries(entries).reduce((sold, entry) => {
+    if (entry.kind === "daily") {
+      PRODUCTS.forEach((product) => {
+        sold[product.key] = num(sold[product.key]) + num(entry[product.key]);
+      });
+    }
+    return sold;
+  }, normalizeStock());
 }
 
 function sortedEntries(entries = state.entries) {
@@ -120,6 +151,7 @@ function showView(id) {
     pregled: ["DNEVNI PREGLED", "Dobro došli"],
     unos: ["EVIDENCIJA", $("#entryId").value ? "Izmjena unosa" : "Novi unos"],
     evidencija: ["ARHIVA POSLOVANJA", "Evidencija"],
+    roba: ["STANJE ROBE", "Roba"],
     izvjestaji: ["POSLOVNI REZULTATI", "Izvještaji"]
   };
   $("#pageEyebrow").textContent = titles[id][0];
@@ -135,12 +167,12 @@ function renderAll() {
     const values = entryTotals(entry);
     acc.income += values.income;
     acc.expense += values.expense;
-    acc.workerDebt += values.workerDebt;
+    acc.debt += values.debt;
     acc.packages += num(entry.packages);
     if (values.income) acc.incomeCount += 1;
     if (values.expense) acc.expenseCount += 1;
     return acc;
-  }, { income: 0, expense: 0, workerDebt: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
+  }, { income: 0, expense: 0, debt: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
   const balance = state.openingBalance + totals.income - totals.expense;
 
   $("#currentBalance").textContent = money(balance);
@@ -148,8 +180,9 @@ function renderAll() {
   $("#balanceStatus").textContent = balance < 0 ? "Upozorenje: kasa je u minusu" : entries.length ? `Početno stanje: ${money(state.openingBalance)}` : "Kasa je spremna za prvi unos";
   $("#totalIncome").textContent = money(totals.income);
   $("#totalExpenses").textContent = money(totals.expense);
-  $("#totalWorkerDebt").textContent = money(totals.workerDebt);
+  $("#totalDebt").textContent = money(totals.debt);
   $("#totalPackages").textContent = totals.packages;
+  $("#totalStock").textContent = totalStock();
   $("#incomeCount").textContent = `${totals.incomeCount} evidentiranih uplata`;
   $("#expenseCount").textContent = `${totals.expenseCount} evidentiranih troškova`;
   $("#openingBalanceInput").value = state.openingBalance;
@@ -157,6 +190,7 @@ function renderAll() {
   renderRecent(entries);
   renderRecords();
   renderChart(entries);
+  renderStock();
   renderReport();
 }
 
@@ -201,7 +235,7 @@ function renderRecords() {
       <td>${safeText(description(entry))}</td>
       <td class="amount-plus">${totals.income ? money(totals.income) : "—"}</td>
       <td class="amount-minus">${totals.expense ? money(totals.expense) : "—"}</td>
-      <td class="amount-minus">${totals.workerDebt ? money(totals.workerDebt) : "—"}</td>
+      <td>${totals.debt ? money(totals.debt) : "—"}</td>
       <td>${num(entry.packages) || "—"}</td>
       <td>${entry.kind === "daily" ? `<button class="action-button" data-edit="${entry.id}">Izmijeni</button>` : ""}<button class="action-button delete" data-delete="${entry.id}">Obriši</button></td>
     </tr>`;
@@ -241,23 +275,41 @@ function renderReport() {
     const values = entryTotals(entry);
     acc.income += values.income;
     acc.expense += values.expense;
-    acc.workerDebt += values.workerDebt;
+    acc.debt += values.debt;
     acc.packages += num(entry.packages);
     return acc;
-  }, { income: 0, expense: 0, workerDebt: 0, packages: 0 });
+  }, { income: 0, expense: 0, debt: 0, packages: 0 });
   const [year, month] = selectedMonth.split("-");
   $("#reportTitle").textContent = `${MONTH_NAMES[num(month) - 1]} ${year}.`;
   $("#reportOpening").textContent = money(state.openingBalance);
   $("#reportIncome").textContent = money(totals.income);
   $("#reportExpenses").textContent = money(totals.expense);
-  $("#reportWorkerDebt").textContent = money(totals.workerDebt);
+  $("#reportDebt").textContent = money(totals.debt);
   $("#reportResult").textContent = money(totals.income - totals.expense);
   $("#reportResult").className = totals.income - totals.expense < 0 ? "negative-text" : "positive-text";
   $("#reportEmpty").classList.toggle("show", entries.length === 0);
   $("#reportRows").innerHTML = entries.map((entry) => {
     const values = entryTotals(entry);
-    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td class="amount-minus">${values.workerDebt ? money(values.workerDebt) : "—"}</td><td>${num(entry.packages) || "—"}</td></tr>`;
+    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td>${values.debt ? money(values.debt) : "—"}</td><td>${num(entry.packages) || "—"}</td></tr>`;
   }).join("");
+}
+
+function renderStock() {
+  const stock = normalizeStock(state.stock);
+  const sold = soldProducts();
+  PRODUCTS.forEach((product) => {
+    const input = document.getElementById(product.stockId);
+    if (input && document.activeElement !== input) {
+      input.value = stock[product.key];
+    }
+  });
+  $("#stockRows").innerHTML = PRODUCTS.map((product) => `
+    <tr>
+      <td><strong>${product.label}</strong></td>
+      <td>${num(stock[product.key])}</td>
+      <td>${num(sold[product.key])}</td>
+    </tr>
+  `).join("");
 }
 
 function resetEntryForm() {
@@ -282,10 +334,10 @@ function editEntry(id) {
 function exportCSV() {
   const month = $("#reportMonth").value || monthISO();
   const entries = sortedEntries().filter((entry) => entry.date.startsWith(month));
-  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug prema radniku KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
+  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
   entries.forEach((entry) => {
     const totals = entryTotals(entry);
-    rows.push([entry.date, entry.kind === "quick" ? "Brzi unos" : "Dnevni unos", description(entry), totals.income, totals.expense, totals.workerDebt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
+    rows.push([entry.date, entry.kind === "quick" ? "Brzi unos" : "Dnevni unos", description(entry), totals.income, totals.expense, totals.debt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
   });
   const csv = "\ufeff" + rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
@@ -324,6 +376,15 @@ $("#openingForm").addEventListener("submit", async (event) => {
     "Početno stanje je sačuvano."
   );
   if (saved) $("#openingDialog").close();
+});
+
+$("#stockForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const stock = PRODUCTS.reduce((values, product) => {
+    values[product.key] = num(document.getElementById(product.stockId).value);
+    return values;
+  }, {});
+  await persistAction("setStock", { stock }, "Stanje robe je sačuvano.");
 });
 
 $("#quickForm").addEventListener("submit", async (event) => {

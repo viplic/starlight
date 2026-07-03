@@ -25,6 +25,9 @@
           <button class="nav-link" data-view="evidencija">
             <span>▤</span> Evidencija
           </button>
+          <button class="nav-link" data-view="roba">
+            <span>◇</span> Roba
+          </button>
           <button class="nav-link" data-view="izvjestaji">
             <span>↗</span> Izvještaji
           </button>
@@ -75,14 +78,19 @@
               <small id="expenseCount">0 evidentiranih troškova</small>
             </article>
             <article class="stat-card">
-              <div class="stat-heading"><span>Dug prema radniku</span><i class="negative">−</i></div>
-              <strong class="stat-value" id="totalWorkerDebt">0,00 KM</strong>
-              <small>Oduzima se od kase</small>
+              <div class="stat-heading"><span>Dug</span><i>!</i></div>
+              <strong class="stat-value" id="totalDebt">0,00 KM</strong>
+              <small>Ne ulazi u kasu</small>
             </article>
             <article class="stat-card">
               <div class="stat-heading"><span>Broj paketa</span><i>□</i></div>
               <strong class="stat-value" id="totalPackages">0</strong>
               <small>Ukupno poslano</small>
+            </article>
+            <article class="stat-card">
+              <div class="stat-heading"><span>Roba na stanju</span><i>◇</i></div>
+              <strong class="stat-value" id="totalStock">0</strong>
+              <small>Ukupno komada</small>
             </article>
           </div>
 
@@ -163,11 +171,11 @@
             </div>
 
             <div class="form-section">
-              <div class="form-section-title"><span>03</span><div><h3>Troškovi i napomena</h3><p>Ovi iznosi se automatski oduzimaju od kase</p></div></div>
+              <div class="form-section-title"><span>03</span><div><h3>Troškovi, dug i napomena</h3><p>Troškovi se oduzimaju od kase, a dug se vodi odvojeno</p></div></div>
               <div class="form-grid three">
                 <label class="field"><span>Ostali troškovi (KM)</span><input type="number" id="otherExpenses" min="0" step="0.01" placeholder="0,00" /></label>
                 <label class="field"><span>Plata (KM)</span><input type="number" id="salary" min="0" step="0.01" placeholder="0,00" /></label>
-                <label class="field"><span>Dug prema radniku (KM)</span><input type="number" id="workerDebt" min="0" step="0.01" placeholder="0,00" /></label>
+                <label class="field"><span>Dug (KM)</span><input type="number" id="workerDebt" min="0" step="0.01" placeholder="0,00" /></label>
                 <label class="field wide"><span>Napomena</span><textarea id="note" rows="3" placeholder="Dodajte napomenu za ovaj dan..."></textarea></label>
               </div>
             </div>
@@ -192,11 +200,39 @@
             </div>
             <div class="table-wrap">
               <table class="records-table">
-                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug radniku</th><th>Paketi</th><th>Akcije</th></tr></thead>
+                <thead><tr><th>Datum</th><th>Vrsta</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug</th><th>Paketi</th><th>Akcije</th></tr></thead>
                 <tbody id="allRows"></tbody>
               </table>
             </div>
             <div class="empty-state" id="allEmpty"><strong>Nema rezultata</strong><p>Promijenite filtere ili dodajte novi unos.</p></div>
+          </article>
+        </section>
+
+        <section class="view" id="roba">
+          <div class="section-intro">
+            <div><p class="eyebrow">STANJE ROBE</p><h2>Roba</h2><p>Unesite trenutno stanje robe. Dnevni unos automatski skida prodate komade.</p></div>
+          </div>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">ZALIHE</p><h2>Trenutno stanje</h2></div></div>
+            <form class="stock-form" id="stockForm">
+              <div class="form-grid three">
+                <label class="field"><span>Krugovi (zlatni)</span><input type="number" id="stockGoldCircles" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Krugovi (srebreni)</span><input type="number" id="stockSilverCircles" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Mama ogrlice</span><input type="number" id="stockMamaNecklaces" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Vojničke pločice</span><input type="number" id="stockArmyTags" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Oči pločice</span><input type="number" id="stockEyeTags" min="0" step="1" placeholder="0" /></label>
+                <label class="field"><span>Narukvice</span><input type="number" id="stockBracelets" min="0" step="1" placeholder="0" /></label>
+              </div>
+              <div class="form-actions">
+                <button class="primary-button" type="submit">Sačuvaj stanje robe</button>
+              </div>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Artikal</th><th>Na stanju</th><th>Prodato kroz evidenciju</th></tr></thead>
+                <tbody id="stockRows"></tbody>
+              </table>
+            </div>
           </article>
         </section>
 
@@ -212,12 +248,12 @@
             <article class="stat-card"><span>Početno stanje</span><strong id="reportOpening">0,00 KM</strong></article>
             <article class="stat-card"><span>Prihodi</span><strong class="positive-text" id="reportIncome">0,00 KM</strong></article>
             <article class="stat-card"><span>Troškovi</span><strong class="negative-text" id="reportExpenses">0,00 KM</strong></article>
-            <article class="stat-card"><span>Dug prema radniku</span><strong class="negative-text" id="reportWorkerDebt">0,00 KM</strong></article>
+            <article class="stat-card"><span>Dug</span><strong id="reportDebt">0,00 KM</strong></article>
             <article class="stat-card"><span>Rezultat mjeseca</span><strong id="reportResult">0,00 KM</strong></article>
           </div>
           <article class="panel">
             <div class="panel-heading"><div><p class="eyebrow">MJESEČNI PREGLED</p><h2 id="reportTitle">Izvještaj</h2></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug radniku</th><th>Paketi</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>Datum</th><th>Opis</th><th>Prihod</th><th>Trošak</th><th>Dug</th><th>Paketi</th></tr></thead><tbody id="reportRows"></tbody></table></div>
             <div class="empty-state" id="reportEmpty"><strong>Nema podataka za ovaj mjesec</strong></div>
           </article>
         </section>
