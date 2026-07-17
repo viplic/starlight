@@ -117,14 +117,6 @@ button, input, textarea, select { max-width: 100%; }
 .panel-heading h2, .section-intro h2 { margin: 5px 0 0; font-family: Georgia, serif; font-size: 20px; font-weight: 500; }
 .legend { color: var(--muted); font-size: 10px; }
 .legend i { display: inline-block; width: 16px; height: 2px; margin: 0 6px 3px 0; background: var(--gold); }
-.chart { height: 242px; padding: 22px; }
-.chart svg { width: 100%; height: 100%; overflow: visible; }
-.chart text { fill: var(--muted); font-size: 9px; }
-.chart .grid-line { stroke: var(--line); stroke-dasharray: 3 5; }
-.chart .area { fill: url(#areaFill); }
-.chart .line { fill: none; stroke: var(--gold); stroke-width: 2.5; }
-.chart .dot { fill: var(--card); stroke: var(--gold); stroke-width: 2.5; }
-.chart-empty { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 12px; }
 .quick-panel form, .debt-panel form { padding: 20px 23px 24px; }
 .debt-panel { margin-top: 16px; }
 .compact-grid { padding-left: 0; }
@@ -246,7 +238,6 @@ body.dark .stat-heading i { background: #1d2d45; }
   .report-actions { display: grid; }
   .report-actions button { font-size: 10px; }
   .panel-heading { align-items: flex-start; flex-direction: column; padding: 18px; }
-  .chart { height: 210px; padding: 18px 12px; }
   th, td { padding: 12px 14px; }
 }
 

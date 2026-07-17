@@ -96,21 +96,31 @@ function entryTotals(entry) {
     return {
       income: entry.type === "plus" ? num(entry.amount) : 0,
       expense: entry.type === "minus" ? num(entry.amount) : 0,
-      debt: 0
+      debt: 0,
+      engravingDebt: 0,
+      salaryDebt: 0
     };
   }
   if (entry.kind === "debt") {
     const amount = num(entry.amount);
+    const signedAmount = entry.type === "decrease" ? -amount : amount;
+    const category = entry.debtCategory === "salary" ? "salary" : "engraving";
     return {
       income: 0,
       expense: 0,
-      debt: entry.type === "decrease" ? -amount : amount
+      debt: signedAmount,
+      engravingDebt: category === "engraving" ? signedAmount : 0,
+      salaryDebt: category === "salary" ? signedAmount : 0
     };
   }
+  const engravingDebt = num(entry.engravingDebt ?? entry.workerDebt);
+  const salaryDebt = num(entry.salaryDebt);
   return {
     income: num(entry.income),
     expense: num(entry.otherExpenses) + num(entry.salary),
-    debt: num(entry.workerDebt)
+    debt: engravingDebt + salaryDebt,
+    engravingDebt,
+    salaryDebt
   };
 }
 
@@ -123,6 +133,17 @@ function entryKindLabel(entry, short = false) {
 function debtDisplay(value) {
   if (!value) return "—";
   return `${value < 0 ? "−" : ""}${money(Math.abs(value))}`;
+}
+
+function debtCategoryLabel(entry) {
+  return entry.debtCategory === "salary" ? "duga od plate" : "duga za graviranje";
+}
+
+function currentDebtByCategory(category) {
+  return state.entries.reduce((total, entry) => {
+    const values = entryTotals(entry);
+    return total + (category === "salary" ? values.salaryDebt : values.engravingDebt);
+  }, 0);
 }
 
 function normalizeStock(stock = {}) {
@@ -160,7 +181,7 @@ function balanceThrough(entries) {
 
 function description(entry) {
   if (entry.kind === "quick") return entry.note || (entry.type === "plus" ? "Dodatni prihod" : "Dodatni trošak");
-  if (entry.kind === "debt") return entry.note || (entry.type === "decrease" ? "Smanjenje duga prema radniku" : "Povećanje duga prema radniku");
+  if (entry.kind === "debt") return entry.note || (entry.type === "decrease" ? `Smanjenje ${debtCategoryLabel(entry)}` : `Povećanje ${debtCategoryLabel(entry)}`);
   return entry.note || "Dnevni unos";
 }
 
@@ -188,11 +209,13 @@ function renderAll() {
     acc.income += values.income;
     acc.expense += values.expense;
     acc.debt += values.debt;
+    acc.engravingDebt += values.engravingDebt;
+    acc.salaryDebt += values.salaryDebt;
     acc.packages += num(entry.packages);
     if (values.income) acc.incomeCount += 1;
     if (values.expense) acc.expenseCount += 1;
     return acc;
-  }, { income: 0, expense: 0, debt: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
+  }, { income: 0, expense: 0, debt: 0, engravingDebt: 0, salaryDebt: 0, packages: 0, incomeCount: 0, expenseCount: 0 });
   const balance = state.openingBalance + totals.income - totals.expense;
 
   $("#currentBalance").textContent = money(balance);
@@ -201,6 +224,8 @@ function renderAll() {
   $("#totalIncome").textContent = money(totals.income);
   $("#totalExpenses").textContent = money(totals.expense);
   $("#totalDebt").textContent = money(totals.debt);
+  $("#totalEngravingDebt").textContent = money(totals.engravingDebt);
+  $("#totalSalaryDebt").textContent = money(totals.salaryDebt);
   $("#totalPackages").textContent = totals.packages;
   $("#totalStock").textContent = totalStock();
   $("#incomeCount").textContent = `${totals.incomeCount} evidentiranih uplata`;
@@ -209,7 +234,6 @@ function renderAll() {
 
   renderRecent(entries);
   renderRecords();
-  renderChart(entries);
   renderStock();
   renderReport();
 }
@@ -256,37 +280,13 @@ function renderRecords() {
       <td>${safeText(description(entry))}</td>
       <td class="amount-plus">${totals.income ? money(totals.income) : "—"}</td>
       <td class="amount-minus">${totals.expense ? money(totals.expense) : "—"}</td>
+      <td class="${totals.engravingDebt < 0 ? "amount-plus" : ""}">${debtDisplay(totals.engravingDebt)}</td>
+      <td class="${totals.salaryDebt < 0 ? "amount-plus" : ""}">${debtDisplay(totals.salaryDebt)}</td>
       <td class="${totals.debt < 0 ? "amount-plus" : ""}">${debtDisplay(totals.debt)}</td>
       <td>${num(entry.packages) || "—"}</td>
       <td>${entry.kind === "daily" ? `<button class="action-button" data-edit="${entry.id}">Izmijeni</button>` : ""}<button class="action-button delete" data-delete="${entry.id}">Obriši</button></td>
     </tr>`;
   }).join("");
-}
-
-function renderChart(entries) {
-  if (!entries.length) {
-    $("#balanceChart").innerHTML = '<div class="chart-empty">Grafikon će se prikazati nakon prvog unosa.</div>';
-    return;
-  }
-  const points = entries.map((entry, index) => ({ date: entry.date, balance: balanceThrough(entries.slice(0, index + 1)) })).slice(-7);
-  const width = 650, height = 190, padX = 28, padY = 24;
-  const values = points.map((point) => point.balance);
-  const min = Math.min(0, ...values), max = Math.max(1, ...values);
-  const range = max - min || 1;
-  const x = (index) => padX + (points.length === 1 ? (width - padX * 2) / 2 : index * (width - padX * 2) / (points.length - 1));
-  const y = (value) => height - padY - ((value - min) / range) * (height - padY * 2);
-  const coords = points.map((point, index) => `${x(index)},${y(point.balance)}`).join(" ");
-  const area = `${x(0)},${height - padY} ${coords} ${x(points.length - 1)},${height - padY}`;
-  const grid = [0, 1, 2, 3].map((step) => {
-    const gy = padY + step * (height - padY * 2) / 3;
-    return `<line class="grid-line" x1="${padX}" x2="${width - padX}" y1="${gy}" y2="${gy}" />`;
-  }).join("");
-  const labels = points.map((point, index) => `<text x="${x(index)}" y="${height - 4}" text-anchor="middle">${point.date.slice(5).split("-").reverse().join(".")}</text>`).join("");
-  const dots = points.map((point, index) => `<circle class="dot" cx="${x(index)}" cy="${y(point.balance)}" r="4"><title>${shortDate(point.date)}: ${money(point.balance)}</title></circle>`).join("");
-  $("#balanceChart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-    <defs><linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8a96a" stop-opacity=".25"/><stop offset="1" stop-color="#c8a96a" stop-opacity="0"/></linearGradient></defs>
-    ${grid}<polygon class="area" points="${area}"/><polyline class="line" points="${coords}"/>${dots}${labels}
-  </svg>`;
 }
 
 function renderReport() {
@@ -297,21 +297,25 @@ function renderReport() {
     acc.income += values.income;
     acc.expense += values.expense;
     acc.debt += values.debt;
+    acc.engravingDebt += values.engravingDebt;
+    acc.salaryDebt += values.salaryDebt;
     acc.packages += num(entry.packages);
     return acc;
-  }, { income: 0, expense: 0, debt: 0, packages: 0 });
+  }, { income: 0, expense: 0, debt: 0, engravingDebt: 0, salaryDebt: 0, packages: 0 });
   const [year, month] = selectedMonth.split("-");
   $("#reportTitle").textContent = `${MONTH_NAMES[num(month) - 1]} ${year}.`;
   $("#reportOpening").textContent = money(state.openingBalance);
   $("#reportIncome").textContent = money(totals.income);
   $("#reportExpenses").textContent = money(totals.expense);
   $("#reportDebt").textContent = money(totals.debt);
+  $("#reportEngravingDebt").textContent = money(totals.engravingDebt);
+  $("#reportSalaryDebt").textContent = money(totals.salaryDebt);
   $("#reportResult").textContent = money(totals.income - totals.expense);
   $("#reportResult").className = totals.income - totals.expense < 0 ? "negative-text" : "positive-text";
   $("#reportEmpty").classList.toggle("show", entries.length === 0);
   $("#reportRows").innerHTML = entries.map((entry) => {
     const values = entryTotals(entry);
-    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td class="${values.debt < 0 ? "amount-plus" : ""}">${debtDisplay(values.debt)}</td><td>${num(entry.packages) || "—"}</td></tr>`;
+    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td class="${values.engravingDebt < 0 ? "amount-plus" : ""}">${debtDisplay(values.engravingDebt)}</td><td class="${values.salaryDebt < 0 ? "amount-plus" : ""}">${debtDisplay(values.salaryDebt)}</td><td class="${values.debt < 0 ? "amount-plus" : ""}">${debtDisplay(values.debt)}</td><td>${num(entry.packages) || "—"}</td></tr>`;
   }).join("");
 }
 
@@ -324,13 +328,15 @@ function renderStock() {
       input.value = stock[product.key];
     }
   });
-  $("#stockRows").innerHTML = PRODUCTS.map((product) => `
+  const stockRows = PRODUCTS.map((product) => `
     <tr>
       <td><strong>${product.label}</strong></td>
       <td>${num(stock[product.key])}</td>
       <td>${num(sold[product.key])}</td>
     </tr>
   `).join("");
+  $("#stockRows").innerHTML = stockRows;
+  $("#overviewStockRows").innerHTML = stockRows;
 }
 
 function resetEntryForm() {
@@ -347,6 +353,9 @@ function editEntry(id) {
     const input = document.getElementById(key);
     if (input) input.value = value;
   });
+  if (!("engravingDebt" in entry)) {
+    $("#engravingDebt").value = num(entry.workerDebt);
+  }
   $("#entryId").value = id;
   $("#entryFormTitle").textContent = "Izmijeni dnevni unos";
   showView("unos");
@@ -355,10 +364,10 @@ function editEntry(id) {
 function exportCSV() {
   const month = $("#reportMonth").value || monthISO();
   const entries = sortedEntries().filter((entry) => entry.date.startsWith(month));
-  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
+  const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug graviranje KM", "Dug plata KM", "Dug ukupno KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
   entries.forEach((entry) => {
     const totals = entryTotals(entry);
-    rows.push([entry.date, entryKindLabel(entry), description(entry), totals.income, totals.expense, totals.debt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
+    rows.push([entry.date, entryKindLabel(entry), description(entry), totals.income, totals.expense, totals.engravingDebt, totals.salaryDebt, totals.debt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
   });
   const csv = "\ufeff" + rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
@@ -420,11 +429,23 @@ $("#quickForm").addEventListener("submit", async (event) => {
 
 $("#debtForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const debtCategory = formData.get("debtCategory");
+  const type = formData.get("debtType");
+  const amount = num($("#debtAmount").value);
+  if (type === "decrease") {
+    const availableDebt = currentDebtByCategory(debtCategory);
+    if (amount > availableDebt) {
+      showToast(`Ne možete smanjiti više od trenutnog ${debtCategory === "salary" ? "duga od plate" : "duga za graviranje"}: ${money(availableDebt)}.`, true);
+      return;
+    }
+  }
   const entry = {
     id: crypto.randomUUID(),
     kind: "debt",
-    type: new FormData(event.currentTarget).get("debtType"),
-    amount: num($("#debtAmount").value),
+    debtCategory,
+    type,
+    amount,
     note: $("#debtNote").value.trim(),
     date: dateISO(),
     createdAt: Date.now()
@@ -435,7 +456,7 @@ $("#debtForm").addEventListener("submit", async (event) => {
 
 $("#entryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const fields = ["income", "packages", "goodsValue", "goldCircles", "silverCircles", "mamaNecklaces", "armyTags", "eyeTags", "bracelets", "otherExpenses", "salary", "workerDebt", "note"];
+  const fields = ["income", "packages", "goodsValue", "goldCircles", "silverCircles", "mamaNecklaces", "armyTags", "eyeTags", "bracelets", "otherExpenses", "salary", "engravingDebt", "salaryDebt", "note"];
   const entry = { id: $("#entryId").value || crypto.randomUUID(), kind: "daily", createdAt: Date.now() };
   entry.date = $("#entryDate").value;
   fields.forEach((field) => {
