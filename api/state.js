@@ -34,7 +34,7 @@ async function ensureSchema(sql) {
         CREATE TABLE IF NOT EXISTS starlight_entries (
           id TEXT PRIMARY KEY,
           entry_date DATE NOT NULL,
-          kind TEXT NOT NULL CHECK (kind IN ('daily', 'quick')),
+          kind TEXT NOT NULL CHECK (kind IN ('daily', 'quick', 'debt')),
           created_at BIGINT NOT NULL,
           payload JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -43,6 +43,29 @@ async function ensureSchema(sql) {
     ]).then(() => sql`
       ALTER TABLE starlight_settings
       ADD COLUMN IF NOT EXISTS stock JSONB NOT NULL DEFAULT '{}'::jsonb
+    `).then(() => sql`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'starlight_entries'::regclass
+            AND conname = 'starlight_entries_kind_check'
+            AND pg_get_constraintdef(oid) NOT LIKE '%debt%'
+        ) THEN
+          ALTER TABLE starlight_entries DROP CONSTRAINT starlight_entries_kind_check;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'starlight_entries'::regclass
+            AND conname = 'starlight_entries_kind_check'
+        ) THEN
+          ALTER TABLE starlight_entries
+          ADD CONSTRAINT starlight_entries_kind_check CHECK (kind IN ('daily', 'quick', 'debt'));
+        END IF;
+      END $$;
     `).then(() => sql`
       INSERT INTO starlight_settings (id, opening_balance, stock)
       VALUES (1, 0, '{}'::jsonb)
@@ -61,7 +84,8 @@ function normalizeEntry(entry) {
     throw new Error("Neispravan unos.");
   }
 
-  const kind = entry.kind === "quick" ? "quick" : "daily";
+  const allowedKinds = ["daily", "quick", "debt"];
+  const kind = allowedKinds.includes(entry.kind) ? entry.kind : "daily";
   const date = String(entry.date || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error("Datum nije ispravan.");

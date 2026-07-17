@@ -126,6 +126,24 @@
             </article>
           </div>
 
+          <article class="panel debt-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">DUG PREMA RADNIKU</p><h2>Korekcija duga</h2></div>
+              <span class="legend">Ne ulazi u kasu</span>
+            </div>
+            <form id="debtForm">
+              <div class="segmented">
+                <label><input type="radio" name="debtType" value="decrease" checked /><span>− Smanji dug</span></label>
+                <label><input type="radio" name="debtType" value="increase" /><span>＋ Povećaj dug</span></label>
+              </div>
+              <div class="form-grid three compact-grid">
+                <label class="field"><span>Iznos (KM)</span><input type="number" id="debtAmount" min="0.01" step="0.01" placeholder="0,00" required /></label>
+                <label class="field wide"><span>Napomena</span><input type="text" id="debtNote" placeholder="Npr. isplaćeno radniku bez ulaza u kasu" /></label>
+              </div>
+              <button class="primary-button full" type="submit">Sačuvaj korekciju duga</button>
+            </form>
+          </article>
+
           <article class="panel recent-panel">
             <div class="panel-heading">
               <div><p class="eyebrow">POSLJEDNJE AKTIVNOSTI</p><h2>Nedavni unosi</h2></div>

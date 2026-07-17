@@ -99,11 +99,30 @@ function entryTotals(entry) {
       debt: 0
     };
   }
+  if (entry.kind === "debt") {
+    const amount = num(entry.amount);
+    return {
+      income: 0,
+      expense: 0,
+      debt: entry.type === "decrease" ? -amount : amount
+    };
+  }
   return {
     income: num(entry.income),
     expense: num(entry.otherExpenses) + num(entry.salary),
     debt: num(entry.workerDebt)
   };
+}
+
+function entryKindLabel(entry, short = false) {
+  if (entry.kind === "quick") return short ? "Brzi" : "Brzi unos";
+  if (entry.kind === "debt") return short ? "Dug" : "Korekcija duga";
+  return short ? "Dnevni" : "Dnevni unos";
+}
+
+function debtDisplay(value) {
+  if (!value) return "—";
+  return `${value < 0 ? "−" : ""}${money(Math.abs(value))}`;
 }
 
 function normalizeStock(stock = {}) {
@@ -141,6 +160,7 @@ function balanceThrough(entries) {
 
 function description(entry) {
   if (entry.kind === "quick") return entry.note || (entry.type === "plus" ? "Dodatni prihod" : "Dodatni trošak");
+  if (entry.kind === "debt") return entry.note || (entry.type === "decrease" ? "Smanjenje duga prema radniku" : "Povećanje duga prema radniku");
   return entry.note || "Dnevni unos";
 }
 
@@ -202,12 +222,13 @@ function renderRecent(entries) {
     const position = entries.findIndex((item) => item.id === entry.id);
     const balance = balanceThrough(entries.slice(0, position + 1));
     const change = totals.income - totals.expense;
+    const isDebt = entry.kind === "debt";
     return `<tr>
       <td><strong>${shortDate(entry.date)}</strong><br><small>${DAY_NAMES[new Date(`${entry.date}T12:00:00`).getDay()]}</small></td>
-      <td><span class="badge ${entry.kind === "quick" ? "quick" : ""}">${entry.kind === "quick" ? "Brzi unos" : "Dnevni unos"}</span></td>
+      <td><span class="badge ${entry.kind === "quick" ? "quick" : entry.kind === "debt" ? "debt" : ""}">${entryKindLabel(entry)}</span></td>
       <td>${safeText(description(entry))}</td>
       <td>${num(entry.packages) || "—"}</td>
-      <td class="${change >= 0 ? "amount-plus" : "amount-minus"}">${change >= 0 ? "+" : "−"}${money(Math.abs(change))}</td>
+      <td class="${isDebt ? "" : change >= 0 ? "amount-plus" : "amount-minus"}">${isDebt ? "Bez promjene kase" : `${change >= 0 ? "+" : "−"}${money(Math.abs(change))}`}</td>
       <td><strong>${money(balance)}</strong></td>
     </tr>`;
   }).join("");
@@ -231,11 +252,11 @@ function renderRecords() {
     const totals = entryTotals(entry);
     return `<tr>
       <td><strong>${shortDate(entry.date)}</strong></td>
-      <td><span class="badge ${entry.kind === "quick" ? "quick" : ""}">${entry.kind === "quick" ? "Brzi" : "Dnevni"}</span></td>
+      <td><span class="badge ${entry.kind === "quick" ? "quick" : entry.kind === "debt" ? "debt" : ""}">${entryKindLabel(entry, true)}</span></td>
       <td>${safeText(description(entry))}</td>
       <td class="amount-plus">${totals.income ? money(totals.income) : "—"}</td>
       <td class="amount-minus">${totals.expense ? money(totals.expense) : "—"}</td>
-      <td>${totals.debt ? money(totals.debt) : "—"}</td>
+      <td class="${totals.debt < 0 ? "amount-plus" : ""}">${debtDisplay(totals.debt)}</td>
       <td>${num(entry.packages) || "—"}</td>
       <td>${entry.kind === "daily" ? `<button class="action-button" data-edit="${entry.id}">Izmijeni</button>` : ""}<button class="action-button delete" data-delete="${entry.id}">Obriši</button></td>
     </tr>`;
@@ -290,7 +311,7 @@ function renderReport() {
   $("#reportEmpty").classList.toggle("show", entries.length === 0);
   $("#reportRows").innerHTML = entries.map((entry) => {
     const values = entryTotals(entry);
-    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td>${values.debt ? money(values.debt) : "—"}</td><td>${num(entry.packages) || "—"}</td></tr>`;
+    return `<tr><td>${shortDate(entry.date)}</td><td>${safeText(description(entry))}</td><td class="amount-plus">${values.income ? money(values.income) : "—"}</td><td class="amount-minus">${values.expense ? money(values.expense) : "—"}</td><td class="${values.debt < 0 ? "amount-plus" : ""}">${debtDisplay(values.debt)}</td><td>${num(entry.packages) || "—"}</td></tr>`;
   }).join("");
 }
 
@@ -337,7 +358,7 @@ function exportCSV() {
   const rows = [["Datum", "Vrsta", "Opis", "Primljeno KM", "Troškovi KM", "Dug KM", "Broj paketa", "Vrijednost robe KM", "Zlatni krugovi", "Srebreni krugovi", "Mama ogrlice", "Vojničke pločice", "Oči pločice", "Narukvice"]];
   entries.forEach((entry) => {
     const totals = entryTotals(entry);
-    rows.push([entry.date, entry.kind === "quick" ? "Brzi unos" : "Dnevni unos", description(entry), totals.income, totals.expense, totals.debt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
+    rows.push([entry.date, entryKindLabel(entry), description(entry), totals.income, totals.expense, totals.debt, num(entry.packages), num(entry.goodsValue), num(entry.goldCircles), num(entry.silverCircles), num(entry.mamaNecklaces), num(entry.armyTags), num(entry.eyeTags), num(entry.bracelets)]);
   });
   const csv = "\ufeff" + rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
   const link = document.createElement("a");
@@ -394,6 +415,21 @@ $("#quickForm").addEventListener("submit", async (event) => {
     amount: num($("#quickAmount").value), note: $("#quickNote").value.trim(), date: dateISO(), createdAt: Date.now()
   };
   const saved = await persistAction("saveEntry", { entry }, "Promjena kase je sačuvana.");
+  if (saved) event.currentTarget.reset();
+});
+
+$("#debtForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const entry = {
+    id: crypto.randomUUID(),
+    kind: "debt",
+    type: new FormData(event.currentTarget).get("debtType"),
+    amount: num($("#debtAmount").value),
+    note: $("#debtNote").value.trim(),
+    date: dateISO(),
+    createdAt: Date.now()
+  };
+  const saved = await persistAction("saveEntry", { entry }, "Korekcija duga je sačuvana.");
   if (saved) event.currentTarget.reset();
 });
 
